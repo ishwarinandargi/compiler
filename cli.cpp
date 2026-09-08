@@ -1,4 +1,6 @@
 #include "token.h"
+#include "parser.h"
+#include "ast.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -20,6 +22,7 @@ void printUsage(const std::string &programName)
     std::cout << "  --stdin              Read from standard input" << std::endl;
     std::cout << "  --verbose            Print detailed token information" << std::endl;
     std::cout << "  --output <file>      Write tokens to output file (JSON)" << std::endl;
+    std::cout << "  --ast                Parse tokens and print the Abstract Syntax Tree" << std::endl;
     std::cout << "  --help               Show this help message" << std::endl;
     std::cout << "\nExample:" << std::endl;
     std::cout << "  " << programName << " story.slt" << std::endl;
@@ -218,6 +221,7 @@ int main(int argc, char *argv[])
     bool useStdin = false;
     bool verbose = false;
     bool printJson = false;
+    bool printAst = false;
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
@@ -240,6 +244,10 @@ int main(int argc, char *argv[])
         else if (arg == "--json")
         {
             printJson = true;
+        }
+        else if (arg == "--ast")
+        {
+            printAst = true;
         }
         else if (arg == "--output" && i + 1 < argc)
         {
@@ -294,6 +302,27 @@ int main(int argc, char *argv[])
         // Tokenize
         Lexer lexer(source);
         auto tokens = lexer.tokenize();
+
+        if (printAst)
+        {
+            Parser parser(tokens);
+            auto ast = parser.parse();
+            ASTPrinter printer;
+            std::cout << "\n=== ABSTRACT SYNTAX TREE ===" << std::endl;
+            std::cout << printer.print(*ast) << std::endl;
+            
+            if (!outputFile.empty())
+            {
+                std::ofstream outFile(outputFile);
+                if (outFile.is_open())
+                {
+                    outFile << printer.print(*ast);
+                    outFile.close();
+                    std::cout << "AST written to '" << outputFile << "'" << std::endl;
+                }
+            }
+            return 0;
+        }
 
         // Output results
         if (printJson)

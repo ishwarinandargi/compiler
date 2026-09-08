@@ -11,30 +11,39 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Source files
-set(LEXER_SOURCES
+set(COMPILER_SOURCES
     lexer.cpp
+    ast.cpp
+    parser.cpp
 )
 
-set(LEXER_HEADERS
+set(COMPILER_HEADERS
     token.h
+    ast.h
+    parser.h
 )
 
-# Lexer library
-add_library(storylang_lexer STATIC ${LEXER_SOURCES} ${LEXER_HEADERS})
-target_include_directories(storylang_lexer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Core library
+add_library(storylang_core STATIC ${COMPILER_SOURCES} ${COMPILER_HEADERS})
+target_include_directories(storylang_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Test executable
-add_executable(lexer_test lexer_test.cpp ${LEXER_SOURCES})
+# Test executables
+add_executable(lexer_test lexer_test.cpp)
 target_include_directories(lexer_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(lexer_test storylang_lexer)
+target_link_libraries(lexer_test storylang_core)
+
+add_executable(parser_test parser_test.cpp)
+target_include_directories(parser_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(parser_test storylang_core)
 
 # Enable testing
 enable_testing()
 add_test(NAME LexerTest COMMAND lexer_test)
+add_test(NAME ParserTest COMMAND parser_test)
 
 # CLI executable (optional, for testing)
 add_executable(storylang_cli cli.cpp)
-target_link_libraries(storylang_cli storylang_lexer)
+target_link_libraries(storylang_cli storylang_core)
 
 # Print configuration
 message(STATUS "=== StoryLang Compiler Configuration ===")

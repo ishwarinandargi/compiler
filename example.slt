@@ -1,0 +1,11 @@
+CHAR hero := "Alice";
+STATE playing := 1;
+
+EVENT on_start(player) {
+    CHAR health := 100;
+    BRANCH (health > 0) {
+        ACTION play {}
+    } ELSE {
+        ACTION game_over {}
+    }
+}
