@@ -36,6 +36,14 @@ add_executable(parser_test parser_test.cpp)
 target_include_directories(parser_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(parser_test storylang_core)
 
+# Parser targets
+add_library(storylang_core STATIC ast.h parser.h parser.cpp)
+target_include_directories(storylang_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(parser_test parser_test.cpp)
+target_include_directories(parser_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(parser_test storylang_core storylang_lexer)
+
 # Enable testing
 enable_testing()
 add_test(NAME LexerTest COMMAND lexer_test)

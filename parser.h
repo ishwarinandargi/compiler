@@ -1,73 +1,59 @@
 #pragma once
 
 #include "ast.h"
-#include <vector>
+#include <cstddef>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
-class ParserError : public std::runtime_error {
+class Parser
+{
 public:
-    Token token;
-    ParserError(const Token& tok, const std::string& message) 
-        : std::runtime_error(message), token(tok) {}
-};
+    explicit Parser(const std::vector<Token> &tokens);
 
-class Parser {
-public:
-    explicit Parser(const std::vector<Token>& tokens);
-    
-    /**
-     * Parse the tokens into an Abstract Syntax Tree.
-     * @return The root node of the parsed program.
-     */
-    std::unique_ptr<ProgramAST> parse();
+    std::unique_ptr<Program> parse();
 
 private:
-    std::vector<Token> tokens;
-    int current = 0;
+    std::vector<Token> tokens_;
+    std::size_t pos_ = 0;
 
-    // --- Helper Methods ---
+    const Token &current() const;
+    const Token &peek(std::size_t offset = 1) const;
+    const Token &previous() const;
+
     bool isAtEnd() const;
-    Token peek() const;
-    Token previous() const;
     bool check(TokenType type) const;
-    Token advance();
-    bool match(const std::vector<TokenType>& types);
-    Token consume(TokenType type, const std::string& message);
-    ParserError error(const Token& token, const std::string& message);
-    void synchronize();
+    bool match(TokenType type);
+    const Token &advance();
+    const Token &consume(TokenType type, const std::string &expectedDescription);
 
-    // --- Parsing Rules ---
-    
-    // Declarations
-    std::unique_ptr<Stmt> declaration();
-    std::unique_ptr<FunctionDecl> functionDeclaration();
-    std::unique_ptr<EventDecl> eventDeclaration();
-    std::unique_ptr<StateDecl> stateDeclaration();
-    std::unique_ptr<ActionDecl> actionDeclaration();
-    std::unique_ptr<PropDecl> propDeclaration();
-    std::unique_ptr<InitDecl> initDeclaration();
-    std::unique_ptr<VarDeclStmt> varDeclaration();
+    void skipNewlines();
+    std::runtime_error makeError(const std::string &expectedDescription) const;
+    std::runtime_error makeError(const Token &token, const std::string &expectedDescription) const;
 
-    // Statements
-    std::unique_ptr<Stmt> statement();
-    std::unique_ptr<BlockStmt> block();
-    std::unique_ptr<BranchStmt> branchStatement();
-    std::unique_ptr<LoopStmt> loopStatement();
-    std::unique_ptr<ReturnStmt> returnStatement();
-    std::unique_ptr<Stmt> expressionStatement();
+    std::unique_ptr<Program> parseProgram();
+    std::unique_ptr<Declaration> parseDeclaration();
+    std::unique_ptr<Statement> parseStatement();
+    std::unique_ptr<Statement> parseActionStatement();
+    std::unique_ptr<Statement> parseBranchStatement();
+    std::unique_ptr<Statement> parseLoopStatement();
+    std::unique_ptr<Statement> parseAssignmentStatement();
+    std::unique_ptr<Statement> parseReturnStatement();
+    std::vector<std::unique_ptr<Statement>> parseBlock();
 
-    // Expressions
-    std::unique_ptr<Expr> expression();
-    std::unique_ptr<Expr> assignment();
-    std::unique_ptr<Expr> logicalOr();
-    std::unique_ptr<Expr> logicalAnd();
-    std::unique_ptr<Expr> equality();
-    std::unique_ptr<Expr> comparison();
-    std::unique_ptr<Expr> term();
-    std::unique_ptr<Expr> factor();
-    std::unique_ptr<Expr> unary();
-    std::unique_ptr<Expr> call();
-    std::unique_ptr<Expr> primary();
+    std::unique_ptr<Expr> parseExpression();
+    std::unique_ptr<Expr> parseLogicalOr();
+    std::unique_ptr<Expr> parseLogicalAnd();
+    std::unique_ptr<Expr> parseComparison();
+    std::unique_ptr<Expr> parseAdditive();
+    std::unique_ptr<Expr> parseMultiplicative();
+    std::unique_ptr<Expr> parseUnary();
+    std::unique_ptr<Expr> parsePrimary();
+    std::unique_ptr<Expr> parseFunctionCall(const std::string &callee);
+    std::vector<std::unique_ptr<Expr>> parseArguments();
+    std::string parseQualifiedName();
+    std::string parseTypeName();
+    std::vector<std::string> parseParameterList();
+>>>>>>> b150139 (Added Parser Implementation)
 };
