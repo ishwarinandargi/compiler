@@ -44,10 +44,21 @@ add_executable(parser_test parser_test.cpp)
 target_include_directories(parser_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(parser_test storylang_core storylang_lexer)
 
+# Semantic analyzer targets
+add_library(storylang_semantic STATIC analyzer.h symbol_table.h analyzer.cpp symbol_table.cpp)
+target_include_directories(storylang_semantic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(storylang_semantic PUBLIC storylang_core storylang_lexer)
+
+add_executable(analyzer_test analyzer_test.cpp)
+target_include_directories(analyzer_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(analyzer_test storylang_semantic storylang_core storylang_lexer)
+
 # Enable testing
 enable_testing()
 add_test(NAME LexerTest COMMAND lexer_test)
 add_test(NAME ParserTest COMMAND parser_test)
+add_test(NAME AnalyzerTest COMMAND analyzer_test)
 
 # CLI executable (optional, for testing)
 add_executable(storylang_cli cli.cpp)
