@@ -1,0 +1,14 @@
+CHAR hero: wanderer
+STATE game_state: {idle | playing | game_over}
+INIT game_state := playing
+
+FUNC calculate_score(base, bonus):
+    RETURN base * 10 + bonus
+
+BRANCH game_state == playing:
+    ACTION play(hero)
+ELSE:
+    ACTION stop(hero)
+
+LOOP counter < 5:
+    counter := counter + 1

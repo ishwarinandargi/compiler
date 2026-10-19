@@ -1,226 +1,198 @@
 #include "ast.h"
-#include <sstream>
 
-std::string ASTPrinter::print(ProgramAST& program) {
-    result.clear();
-    isLastChildStack.clear();
-    program.accept(*this);
-    return result;
+std::string ASTPrinter::print(const Program &program)
+{
+    result_.clear();
+    indent_ = 0;
+
+    line("Program");
+    indent_++;
+
+    for (const auto &decl : program.declarations)
+    {
+        decl->accept(*this);
+    }
+
+    for (const auto &stmt : program.statements)
+    {
+        stmt->accept(*this);
+    }
+
+    indent_--;
+    return result_;
 }
 
-void ASTPrinter::printIndent() {
-    if (isLastChildStack.empty()) return;
+void ASTPrinter::indent()
+{
+    for (int i = 0; i < indent_; ++i)
+    {
+        result_ += "  ";
+    }
+}
 
-    for (size_t i = 0; i < isLastChildStack.size() - 1; ++i) {
-        if (isLastChildStack[i]) {
-            result += "    ";
-        } else {
-            result += "│   ";
+void ASTPrinter::line(const std::string &text)
+{
+    indent();
+    result_ += text + "\n";
+}
+
+void ASTPrinter::visit(IdentifierExpr &expr)
+{
+    line("Identifier: " + expr.name);
+}
+
+void ASTPrinter::visit(LiteralExpr &expr)
+{
+    line("Literal: " + expr.value);
+}
+
+void ASTPrinter::visit(BinaryExpr &expr)
+{
+    line("BinaryExpr: " + expr.op);
+    indent_++;
+    expr.left->accept(*this);
+    expr.right->accept(*this);
+    indent_--;
+}
+
+void ASTPrinter::visit(UnaryExpr &expr)
+{
+    line("UnaryExpr: " + expr.op);
+    indent_++;
+    expr.operand->accept(*this);
+    indent_--;
+}
+
+void ASTPrinter::visit(CallExpr &expr)
+{
+    line("CallExpr: " + expr.callee);
+    indent_++;
+    for (const auto &arg : expr.args)
+    {
+        arg->accept(*this);
+    }
+    indent_--;
+}
+
+void ASTPrinter::visit(ActionStmt &stmt)
+{
+    line("ActionStmt: " + stmt.name);
+    indent_++;
+    for (const auto &arg : stmt.args)
+    {
+        arg->accept(*this);
+    }
+    indent_--;
+}
+
+void ASTPrinter::visit(BranchStmt &stmt)
+{
+    line("BranchStmt");
+    indent_++;
+    line("Condition:");
+    indent_++;
+    stmt.condition->accept(*this);
+    indent_--;
+
+    line("Then:");
+    indent_++;
+    for (const auto &s : stmt.thenBlock)
+    {
+        s->accept(*this);
+    }
+    indent_--;
+
+    if (!stmt.elseBlock.empty())
+    {
+        line("Else:");
+        indent_++;
+        for (const auto &s : stmt.elseBlock)
+        {
+            s->accept(*this);
         }
+        indent_--;
     }
-    
-    if (isLastChildStack.back()) {
-        result += "└── ";
-    } else {
-        result += "├── ";
+    indent_--;
+}
+
+void ASTPrinter::visit(LoopStmt &stmt)
+{
+    line("LoopStmt");
+    indent_++;
+    line("Condition:");
+    indent_++;
+    stmt.condition->accept(*this);
+    indent_--;
+
+    line("Body:");
+    indent_++;
+    for (const auto &s : stmt.body)
+    {
+        s->accept(*this);
     }
+    indent_--;
+    indent_--;
 }
 
-void ASTPrinter::appendLine(const std::string& text) {
-    printIndent();
-    result += text + "\n";
+void ASTPrinter::visit(AssignmentStmt &stmt)
+{
+    line("AssignmentStmt: " + stmt.lvalue + " :=");
+    indent_++;
+    stmt.value->accept(*this);
+    indent_--;
 }
 
-void ASTPrinter::visitNumberExpr(NumberExpr& node) {
-    appendLine("NumberExpr (" + std::to_string(node.value) + ")");
-}
-
-void ASTPrinter::visitStringExpr(StringExpr& node) {
-    appendLine("StringExpr (\"" + node.value + "\")");
-}
-
-void ASTPrinter::visitIdentifierExpr(IdentifierExpr& node) {
-    appendLine("IdentifierExpr (" + node.name.lexeme + ")");
-}
-
-void ASTPrinter::visitBinaryExpr(BinaryExpr& node) {
-    appendLine("BinaryExpr (" + node.op.lexeme + ")");
-    isLastChildStack.push_back(false);
-    node.left->accept(*this);
-    isLastChildStack.pop_back();
-    
-    isLastChildStack.push_back(true);
-    node.right->accept(*this);
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitUnaryExpr(UnaryExpr& node) {
-    appendLine("UnaryExpr (" + node.op.lexeme + ")");
-    isLastChildStack.push_back(true);
-    node.right->accept(*this);
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitCallExpr(CallExpr& node) {
-    appendLine("CallExpr");
-    isLastChildStack.push_back(node.arguments.empty());
-    node.callee->accept(*this);
-    isLastChildStack.pop_back();
-    
-    for (size_t i = 0; i < node.arguments.size(); ++i) {
-        isLastChildStack.push_back(i == node.arguments.size() - 1);
-        node.arguments[i]->accept(*this);
-        isLastChildStack.pop_back();
+void ASTPrinter::visit(ReturnStmt &stmt)
+{
+    line("ReturnStmt");
+    if (stmt.value)
+    {
+        indent_++;
+        stmt.value->accept(*this);
+        indent_--;
     }
 }
 
-void ASTPrinter::visitBlockStmt(BlockStmt& node) {
-    appendLine("BlockStmt");
-    for (size_t i = 0; i < node.statements.size(); ++i) {
-        isLastChildStack.push_back(i == node.statements.size() - 1);
-        node.statements[i]->accept(*this);
-        isLastChildStack.pop_back();
+void ASTPrinter::visit(CharDecl &decl)
+{
+    line("CharDecl: " + decl.name + " (" + decl.type + ")");
+}
+
+void ASTPrinter::visit(StateDecl &decl)
+{
+    std::string vals;
+    for (size_t i = 0; i < decl.values.size(); ++i)
+    {
+        vals += decl.values[i];
+        if (i + 1 < decl.values.size()) vals += ", ";
     }
+    line("StateDecl: " + decl.name + " [" + vals + "]");
 }
 
-void ASTPrinter::visitExprStmt(ExprStmt& node) {
-    appendLine("ExprStmt");
-    isLastChildStack.push_back(true);
-    node.expression->accept(*this);
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitVarDeclStmt(VarDeclStmt& node) {
-    appendLine("VarDeclStmt (" + node.typeKeyword.lexeme + " " + node.name.lexeme + ")");
-    if (node.initializer) {
-        isLastChildStack.push_back(true);
-        node.initializer->accept(*this);
-        isLastChildStack.pop_back();
+void ASTPrinter::visit(EventDecl &decl)
+{
+    line("EventDecl: " + decl.name);
+    indent_++;
+    for (const auto &s : decl.body)
+    {
+        s->accept(*this);
     }
+    indent_--;
 }
 
-void ASTPrinter::visitAssignStmt(AssignStmt& node) {
-    appendLine("AssignStmt (" + node.name.lexeme + " :=)");
-    isLastChildStack.push_back(true);
-    node.value->accept(*this);
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitBranchStmt(BranchStmt& node) {
-    appendLine("BranchStmt");
-    
-    isLastChildStack.push_back(false);
-    appendLine("Condition:");
-    isLastChildStack.push_back(true);
-    node.condition->accept(*this);
-    isLastChildStack.pop_back();
-    isLastChildStack.pop_back();
-    
-    isLastChildStack.push_back(node.elseBranch == nullptr);
-    appendLine("Then:");
-    isLastChildStack.push_back(true);
-    node.thenBranch->accept(*this);
-    isLastChildStack.pop_back();
-    isLastChildStack.pop_back();
-    
-    if (node.elseBranch) {
-        isLastChildStack.push_back(true);
-        appendLine("Else:");
-        isLastChildStack.push_back(true);
-        node.elseBranch->accept(*this);
-        isLastChildStack.pop_back();
-        isLastChildStack.pop_back();
+void ASTPrinter::visit(FuncDecl &decl)
+{
+    std::string params;
+    for (size_t i = 0; i < decl.params.size(); ++i)
+    {
+        params += decl.params[i];
+        if (i + 1 < decl.params.size()) params += ", ";
     }
-}
-
-void ASTPrinter::visitLoopStmt(LoopStmt& node) {
-    appendLine("LoopStmt");
-    
-    isLastChildStack.push_back(false);
-    appendLine("Condition:");
-    isLastChildStack.push_back(true);
-    node.condition->accept(*this);
-    isLastChildStack.pop_back();
-    isLastChildStack.pop_back();
-    
-    isLastChildStack.push_back(true);
-    appendLine("Body:");
-    isLastChildStack.push_back(true);
-    node.body->accept(*this);
-    isLastChildStack.pop_back();
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitReturnStmt(ReturnStmt& node) {
-    appendLine("ReturnStmt");
-    if (node.value) {
-        isLastChildStack.push_back(true);
-        node.value->accept(*this);
-        isLastChildStack.pop_back();
+    line("FuncDecl: " + decl.name + "(" + params + ")");
+    indent_++;
+    for (const auto &s : decl.body)
+    {
+        s->accept(*this);
     }
-}
-
-void ASTPrinter::visitFunctionDecl(FunctionDecl& node) {
-    std::string params = "";
-    for (size_t i = 0; i < node.parameters.size(); ++i) {
-        params += node.parameters[i].lexeme;
-        if (i < node.parameters.size() - 1) params += ", ";
-    }
-    appendLine("FunctionDecl (" + node.name.lexeme + ") Params: [" + params + "]");
-    isLastChildStack.push_back(true);
-    node.body->accept(*this);
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitEventDecl(EventDecl& node) {
-    std::string params = "";
-    for (size_t i = 0; i < node.parameters.size(); ++i) {
-        params += node.parameters[i].lexeme;
-        if (i < node.parameters.size() - 1) params += ", ";
-    }
-    appendLine("EventDecl (" + node.name.lexeme + ") Params: [" + params + "]");
-    isLastChildStack.push_back(true);
-    node.body->accept(*this);
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitStateDecl(StateDecl& node) {
-    appendLine("StateDecl (" + node.name.lexeme + ")");
-    if (node.initializer) {
-        isLastChildStack.push_back(true);
-        node.initializer->accept(*this);
-        isLastChildStack.pop_back();
-    }
-}
-
-void ASTPrinter::visitActionDecl(ActionDecl& node) {
-    appendLine("ActionDecl (" + node.name.lexeme + ")");
-    isLastChildStack.push_back(true);
-    node.body->accept(*this);
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitPropDecl(PropDecl& node) {
-    appendLine("PropDecl (" + node.name.lexeme + ")");
-    if (node.initializer) {
-        isLastChildStack.push_back(true);
-        node.initializer->accept(*this);
-        isLastChildStack.pop_back();
-    }
-}
-
-void ASTPrinter::visitInitDecl(InitDecl& node) {
-    appendLine("InitDecl");
-    isLastChildStack.push_back(true);
-    node.body->accept(*this);
-    isLastChildStack.pop_back();
-}
-
-void ASTPrinter::visitProgramAST(ProgramAST& node) {
-    appendLine("ProgramAST");
-    for (size_t i = 0; i < node.declarations.size(); ++i) {
-        isLastChildStack.push_back(i == node.declarations.size() - 1);
-        node.declarations[i]->accept(*this);
-        isLastChildStack.pop_back();
-    }
+    indent_--;
 }

@@ -1,0 +1,8 @@
+CHAR hero: wanderer
+STATE door: {open | locked}
+INIT door := open
+
+BRANCH door == open:
+    ACTION enter(hero)
+ELSE:
+    ACTION wait(hero)

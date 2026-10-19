@@ -1,6 +1,9 @@
 #include "token.h"
 #include "parser.h"
 #include "ast.h"
+#include "ir.h"
+#include "codegen.h"
+#include "analyzer.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -8,7 +11,7 @@
 #include <string>
 
 /**
- * StoryLang Lexer CLI
+ * StoryLang Compiler CLI
  *
  * Usage:
  *   ./storylang_cli <input_file.slt>
@@ -21,12 +24,15 @@ void printUsage(const std::string &programName)
     std::cout << "\nOptions:" << std::endl;
     std::cout << "  --stdin              Read from standard input" << std::endl;
     std::cout << "  --verbose            Print detailed token information" << std::endl;
-    std::cout << "  --output <file>      Write tokens to output file (JSON)" << std::endl;
+    std::cout << "  --output <file>      Write output to specified file" << std::endl;
     std::cout << "  --ast                Parse tokens and print the Abstract Syntax Tree" << std::endl;
+    std::cout << "  --ir                 Generate and print Three-Address Code (3AC)" << std::endl;
+    std::cout << "  --quads              Print 3AC Quadruple Table" << std::endl;
+    std::cout << "  --all                Run and display all 4 compiler stages sequentially" << std::endl;
     std::cout << "  --help               Show this help message" << std::endl;
     std::cout << "\nExample:" << std::endl;
-    std::cout << "  " << programName << " story.slt" << std::endl;
-    std::cout << "  " << programName << " --stdin --verbose" << std::endl;
+    std::cout << "  " << programName << " story.slt --all" << std::endl;
+    std::cout << "  " << programName << " story.slt --ir --quads" << std::endl;
 }
 
 std::string escapeJsonString(const std::string &str)
@@ -214,6 +220,42 @@ void printStatistics(const std::vector<Token> &tokens)
     std::cout << std::endl;
 }
 
+void printSymbolTable(const SymbolTable &symTable)
+{
+    std::cout << "+----------------+------------+----------------+--------------------------+\n";
+    std::cout << "| Symbol Name    | Kind       | Data Type      | Attributes               |\n";
+    std::cout << "+----------------+------------+----------------+--------------------------+\n";
+
+    const auto &scopes = symTable.scopes();
+    for (size_t i = 0; i < scopes.size(); ++i)
+    {
+        for (const auto &pair : scopes[i])
+        {
+            const auto &sym = pair.second;
+            std::string kindStr;
+            switch (sym.kind)
+            {
+            case Symbol::Kind::Char: kindStr = "Character"; break;
+            case Symbol::Kind::State: kindStr = "State/Enum"; break;
+            case Symbol::Kind::Func: kindStr = "Function"; break;
+            case Symbol::Kind::Var: kindStr = "Variable"; break;
+            }
+
+            std::string attrStr;
+            for (const auto &attr : sym.attributes)
+            {
+                attrStr += attr.first + "=" + attr.second + " ";
+            }
+
+            std::cout << "| " << std::setw(14) << std::left << sym.name << " | "
+                      << std::setw(10) << std::left << kindStr << " | "
+                      << std::setw(14) << std::left << (sym.dataType.empty() ? "-" : sym.dataType) << " | "
+                      << std::setw(24) << std::left << (attrStr.empty() ? "-" : attrStr) << " |\n";
+        }
+    }
+    std::cout << "+----------------+------------+----------------+--------------------------+\n";
+}
+
 int main(int argc, char *argv[])
 {
     std::string inputFile;
@@ -222,6 +264,9 @@ int main(int argc, char *argv[])
     bool verbose = false;
     bool printJson = false;
     bool printAst = false;
+    bool printIR = false;
+    bool printQuads = false;
+    bool printAll = false;
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
@@ -248,6 +293,18 @@ int main(int argc, char *argv[])
         else if (arg == "--ast")
         {
             printAst = true;
+        }
+        else if (arg == "--ir" || arg == "--3ac")
+        {
+            printIR = true;
+        }
+        else if (arg == "--quads")
+        {
+            printQuads = true;
+        }
+        else if (arg == "--all")
+        {
+            printAll = true;
         }
         else if (arg == "--output" && i + 1 < argc)
         {
@@ -302,6 +359,93 @@ int main(int argc, char *argv[])
         // Tokenize
         Lexer lexer(source);
         auto tokens = lexer.tokenize();
+
+        if (printAll)
+        {
+            std::cout << "\n=======================================================\n";
+            std::cout << "  STAGE 1: LEXICAL ANALYSIS (TOKEN STREAM)             \n";
+            std::cout << "=======================================================\n";
+            printTokensAsTable(tokens);
+
+            Parser parser(tokens);
+            auto ast = parser.parse();
+            ASTPrinter printer;
+            std::cout << "=======================================================\n";
+            std::cout << "  STAGE 2: SYNTAX ANALYSIS (ABSTRACT SYNTAX TREE)      \n";
+            std::cout << "=======================================================\n";
+            std::cout << printer.print(*ast) << std::endl;
+
+            SemanticAnalyzer analyzer;
+            analyzer.analyze(*ast);
+            std::cout << "=======================================================\n";
+            std::cout << "  STAGE 3: SEMANTIC ANALYSIS & SYMBOL TABLE            \n";
+            std::cout << "=======================================================\n";
+            if (analyzer.errors().empty())
+            {
+                std::cout << "Semantic Verification: PASSED (0 errors)\n\n";
+                printSymbolTable(analyzer.symbolTable());
+            }
+            else
+            {
+                std::cout << "Semantic Verification: FAILED (" << analyzer.errors().size() << " errors)\n";
+                for (const auto &err : analyzer.errors())
+                {
+                    std::cout << "  - " << err << "\n";
+                }
+            }
+
+            CodeGenerator codegen;
+            codegen.generate(*ast);
+            std::cout << "\n=======================================================\n";
+            std::cout << "  STAGE 4: INTERMEDIATE CODE GENERATION (3AC)          \n";
+            std::cout << "=======================================================\n";
+            std::cout << "--- Linear Three-Address Code ---\n";
+            codegen.code().print(std::cout);
+
+            std::cout << "\n--- Quadruple Table ---\n";
+            codegen.code().printQuadrupleTable(std::cout);
+
+            std::cout << "\n=======================================================\n";
+            std::cout << "  ALL 4 STAGES COMPLETED SUCCESSFULLY                  \n";
+            std::cout << "=======================================================\n";
+            return 0;
+        }
+
+        if (printIR || printQuads)
+        {
+            Parser parser(tokens);
+            auto ast = parser.parse();
+            CodeGenerator codegen;
+            codegen.generate(*ast);
+
+            if (printIR)
+            {
+                std::cout << "\n=== THREE-ADDRESS CODE (3AC) ===" << std::endl;
+                codegen.code().print(std::cout);
+            }
+
+            if (printQuads)
+            {
+                std::cout << "\n=== QUADRUPLE TABLE ===" << std::endl;
+                codegen.code().printQuadrupleTable(std::cout);
+            }
+
+            if (!outputFile.empty())
+            {
+                std::ofstream outFile(outputFile);
+                if (outFile.is_open())
+                {
+                    codegen.code().print(outFile);
+                    if (printQuads)
+                    {
+                        codegen.code().printQuadrupleTable(outFile);
+                    }
+                    outFile.close();
+                    std::cout << "3AC written to '" << outputFile << "'" << std::endl;
+                }
+            }
+            return 0;
+        }
 
         if (printAst)
         {

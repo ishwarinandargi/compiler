@@ -223,3 +223,30 @@ struct Visitor
     virtual void visit(EventDecl &decl) = 0;
     virtual void visit(FuncDecl &decl) = 0;
 };
+
+class ASTPrinter : public Visitor
+{
+public:
+    std::string print(const Program &program);
+
+    void visit(IdentifierExpr &expr) override;
+    void visit(LiteralExpr &expr) override;
+    void visit(BinaryExpr &expr) override;
+    void visit(UnaryExpr &expr) override;
+    void visit(CallExpr &expr) override;
+    void visit(ActionStmt &stmt) override;
+    void visit(BranchStmt &stmt) override;
+    void visit(LoopStmt &stmt) override;
+    void visit(AssignmentStmt &stmt) override;
+    void visit(ReturnStmt &stmt) override;
+    void visit(CharDecl &decl) override;
+    void visit(StateDecl &decl) override;
+    void visit(EventDecl &decl) override;
+    void visit(FuncDecl &decl) override;
+
+private:
+    int indent_ = 0;
+    std::string result_;
+    void indent();
+    void line(const std::string &text);
+};

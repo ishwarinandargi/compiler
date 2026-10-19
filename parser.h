@@ -55,5 +55,4 @@ private:
     std::string parseQualifiedName();
     std::string parseTypeName();
     std::vector<std::string> parseParameterList();
->>>>>>> b150139 (Added Parser Implementation)
 };
