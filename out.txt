@@ -1,0 +1,55 @@
+    # ==========================================================================
+    #   STORYLANG COMPILER - TARGET CODE GENERATOR (x86-64 ASSEMBLY)            
+    #   Target: x86-64 (GNU / MinGW / System V AMD64 ABI Compatible)           
+    # ==========================================================================
+    # --------------------------------------------------------------------------
+    #   DATA SEGMENT: String Literals, Action Messages & Program Constants      
+    # --------------------------------------------------------------------------
+    .section .rdata,"dr"
+.LC_action_fmt:
+    .ascii  "  >>> [ACTION EXECUTION] %s\12\0"
+.LC_char_hero_1:
+    .asciz  "wanderer"
+.LC_act_enter_2:
+    .asciz  "ACTION: enter"
+.LC_act_wait_3:
+    .asciz  "ACTION: wait"
+    # --------------------------------------------------------------------------
+    #   TEXT SEGMENT: Executable Machine Instructions                           
+    # --------------------------------------------------------------------------
+    .text
+    # Declaration: Character 'hero' of role 'wanderer'
+    # Declaration: State 'door' with values {open | locked}
+    # ----------------------------------------------------------------------
+    # Function Definition: main
+    # ----------------------------------------------------------------------
+    .globl  main
+    .def    main; .scl 2; .type 32; .endef
+main:
+    pushq   %rbp                    # Save old base pointer
+    movq    %rsp, %rbp              # Establish new stack frame
+    subq    $32, %rsp               # Allocate 32 bytes on stack
+    movl    $0, -16(%rbp)           # 3AC: door = open
+    movl    -16(%rbp), %eax         # 3AC: t0 = door == open
+    cmpl    $0, %eax                # Compare operands (door vs open)
+    sete    %al                     # Set lower byte based on condition code
+    movzbl  %al, %eax               # Zero-extend %al into %eax
+    movl    %eax, -24(%rbp)         # Store boolean result to t0
+    movl    -24(%rbp), %eax         # 3AC: if_false t0 goto L1
+    cmpl    $0, %eax                # Test condition boolean value
+    je      L1                      # Jump if false (zero)
+    # Push parameter: hero
+    # 3AC: action enter (1 args)
+    leaq    .LC_act_enter_4(%rip), %rcx  # Load action message address for puts/printf
+    call    puts                    # Trigger runtime action notification
+    jmp     L2                      # 3AC: goto L2
+L1:
+    # Push parameter: hero
+    # 3AC: action wait (1 args)
+    leaq    .LC_act_wait_5(%rip), %rcx  # Load action message address for puts/printf
+    call    puts                    # Trigger runtime action notification
+L2:
+    movl    $0, %eax                # Return 0 exit code
+    movq    %rbp, %rsp              # Deallocate stack frame
+    popq    %rbp                    # Restore base pointer
+    ret                             # Return to caller

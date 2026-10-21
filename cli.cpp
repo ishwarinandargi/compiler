@@ -3,6 +3,8 @@
 #include "ast.h"
 #include "ir.h"
 #include "codegen.h"
+#include "optimizer.h"
+#include "target_codegen.h"
 #include "analyzer.h"
 #include <iostream>
 #include <fstream>
@@ -28,11 +30,14 @@ void printUsage(const std::string &programName)
     std::cout << "  --ast                Parse tokens and print the Abstract Syntax Tree" << std::endl;
     std::cout << "  --ir                 Generate and print Three-Address Code (3AC)" << std::endl;
     std::cout << "  --quads              Print 3AC Quadruple Table" << std::endl;
-    std::cout << "  --all                Run and display all 4 compiler stages sequentially" << std::endl;
+    std::cout << "  --opt                Run intermediate code optimizer and show report" << std::endl;
+    std::cout << "  --target, --asm      Generate and print x86-64 Target Machine Assembly" << std::endl;
+    std::cout << "  --all                Run and display all 6 compiler stages sequentially" << std::endl;
     std::cout << "  --help               Show this help message" << std::endl;
     std::cout << "\nExample:" << std::endl;
-    std::cout << "  " << programName << " story.slt --all" << std::endl;
-    std::cout << "  " << programName << " story.slt --ir --quads" << std::endl;
+    std::cout << "  " << programName << " demo.slt --all" << std::endl;
+    std::cout << "  " << programName << " demo.slt --target" << std::endl;
+    std::cout << "  " << programName << " demo.slt --ir --opt" << std::endl;
 }
 
 std::string escapeJsonString(const std::string &str)
@@ -122,8 +127,8 @@ void printTokensAsTable(const std::vector<Token> &tokens)
         }
 
         std::cout << std::setw(25) << std::left << token.typeName()
-                  << " | " << std::setw(20) << lexemeDisplay
-                  << " | L" << token.line << ":C" << token.column << std::endl;
+              << " | " << std::setw(20) << lexemeDisplay
+              << " | L" << token.line << ":C" << token.column << std::endl;
     }
 
     std::cout << std::string(80, '-') << std::endl;
@@ -266,6 +271,8 @@ int main(int argc, char *argv[])
     bool printAst = false;
     bool printIR = false;
     bool printQuads = false;
+    bool printOpt = false;
+    bool printTarget = false;
     bool printAll = false;
 
     // Parse command line arguments
@@ -302,6 +309,14 @@ int main(int argc, char *argv[])
         {
             printQuads = true;
         }
+        else if (arg == "--opt")
+        {
+            printOpt = true;
+        }
+        else if (arg == "--target" || arg == "--asm" || arg == "--codegen")
+        {
+            printTarget = true;
+        }
         else if (arg == "--all")
         {
             printAll = true;
@@ -328,7 +343,6 @@ int main(int argc, char *argv[])
     {
         if (useStdin)
         {
-            // Read from standard input
             std::string line;
             while (std::getline(std::cin, line))
             {
@@ -337,7 +351,6 @@ int main(int argc, char *argv[])
         }
         else if (!inputFile.empty())
         {
-            // Read from file
             std::ifstream file(inputFile);
             if (!file.is_open())
             {
@@ -356,7 +369,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        // Tokenize
+        // STAGE 1: Lexical Analysis
         Lexer lexer(source);
         auto tokens = lexer.tokenize();
 
@@ -366,7 +379,9 @@ int main(int argc, char *argv[])
             std::cout << "  STAGE 1: LEXICAL ANALYSIS (TOKEN STREAM)             \n";
             std::cout << "=======================================================\n";
             printTokensAsTable(tokens);
+            printStatistics(tokens);
 
+            // STAGE 2: Syntax Analysis
             Parser parser(tokens);
             auto ast = parser.parse();
             ASTPrinter printer;
@@ -375,6 +390,7 @@ int main(int argc, char *argv[])
             std::cout << "=======================================================\n";
             std::cout << printer.print(*ast) << std::endl;
 
+            // STAGE 3: Semantic Analysis
             SemanticAnalyzer analyzer;
             analyzer.analyze(*ast);
             std::cout << "=======================================================\n";
@@ -394,6 +410,7 @@ int main(int argc, char *argv[])
                 }
             }
 
+            // STAGE 4: Intermediate Code Generation
             CodeGenerator codegen;
             codegen.generate(*ast);
             std::cout << "\n=======================================================\n";
@@ -405,9 +422,90 @@ int main(int argc, char *argv[])
             std::cout << "\n--- Quadruple Table ---\n";
             codegen.code().printQuadrupleTable(std::cout);
 
+            // STAGE 5: Code Optimization
+            Optimizer optimizer;
+            auto optimizedIR = optimizer.optimize(codegen.code());
             std::cout << "\n=======================================================\n";
-            std::cout << "  ALL 4 STAGES COMPLETED SUCCESSFULLY                  \n";
+            std::cout << "  STAGE 5: CODE OPTIMIZATION (IR TRANSFORMATIONS)      \n";
             std::cout << "=======================================================\n";
+            std::cout << "--- Optimized Three-Address Code ---\n";
+            optimizedIR.print(std::cout);
+            optimizer.printReport(std::cout);
+
+            // STAGE 6: Target Code Generation
+            TargetCodeGenerator targetGen;
+            targetGen.generate(optimizedIR);
+            std::cout << "\n=======================================================\n";
+            std::cout << "  STAGE 6: TARGET CODE GENERATION (x86-64 ASSEMBLY)    \n";
+            std::cout << "=======================================================\n";
+            std::cout << "--- Target Assembly Code Listing ---\n";
+            targetGen.printAssembly(std::cout);
+
+            std::cout << "\n--- Stack Frame & Register Storage Mapping Table ---\n";
+            targetGen.printAllocationTable(std::cout);
+            targetGen.printTargetSummary(std::cout);
+
+            std::cout << "\n=======================================================\n";
+            std::cout << "  COMPILER PIPELINE COMPLETE: ALL 6 PHASES PASSED!    \n";
+            std::cout << "=======================================================\n";
+
+            if (!outputFile.empty())
+            {
+                std::ofstream outFile(outputFile);
+                if (outFile.is_open())
+                {
+                    targetGen.printAssembly(outFile);
+                    outFile.close();
+                    std::cout << "Target Assembly saved to '" << outputFile << "'\n";
+                }
+            }
+
+            return 0;
+        }
+
+        if (printTarget)
+        {
+            Parser parser(tokens);
+            auto ast = parser.parse();
+            CodeGenerator codegen;
+            codegen.generate(*ast);
+            Optimizer optimizer;
+            auto optIR = optimizer.optimize(codegen.code());
+            TargetCodeGenerator targetGen;
+            targetGen.generate(optIR);
+
+            std::cout << "\n=== TARGET x86-64 ASSEMBLY ===" << std::endl;
+            targetGen.printAssembly(std::cout);
+
+            std::cout << "\n=== STORAGE & STACK ALLOCATION TABLE ===" << std::endl;
+            targetGen.printAllocationTable(std::cout);
+            targetGen.printTargetSummary(std::cout);
+
+            if (!outputFile.empty())
+            {
+                std::ofstream outFile(outputFile);
+                if (outFile.is_open())
+                {
+                    targetGen.printAssembly(outFile);
+                    outFile.close();
+                    std::cout << "Assembly written to '" << outputFile << "'" << std::endl;
+                }
+            }
+            return 0;
+        }
+
+        if (printOpt)
+        {
+            Parser parser(tokens);
+            auto ast = parser.parse();
+            CodeGenerator codegen;
+            codegen.generate(*ast);
+            Optimizer optimizer;
+            auto optIR = optimizer.optimize(codegen.code());
+
+            std::cout << "\n=== OPTIMIZED THREE-ADDRESS CODE ===" << std::endl;
+            optIR.print(std::cout);
+            optimizer.printReport(std::cout);
             return 0;
         }
 
@@ -454,7 +552,7 @@ int main(int argc, char *argv[])
             ASTPrinter printer;
             std::cout << "\n=== ABSTRACT SYNTAX TREE ===" << std::endl;
             std::cout << printer.print(*ast) << std::endl;
-            
+
             if (!outputFile.empty())
             {
                 std::ofstream outFile(outputFile);
@@ -483,7 +581,6 @@ int main(int argc, char *argv[])
             printStatistics(tokens);
         }
 
-        // Write to file if requested
         if (!outputFile.empty())
         {
             std::ofstream outFile(outputFile);
@@ -503,7 +600,7 @@ int main(int argc, char *argv[])
     }
     catch (const std::runtime_error &e)
     {
-        std::cerr << "Lexical Error: " << e.what() << std::endl;
+        std::cerr << "Lexical/Syntax Error: " << e.what() << std::endl;
         return 1;
     }
     catch (const std::exception &e)
