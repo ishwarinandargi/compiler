@@ -55,6 +55,10 @@ add_library(storylang_ir STATIC
 target_include_directories(storylang_ir PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(storylang_ir PUBLIC storylang_core)
 
+# Optional runtime used by AI.generate and AI.choose calls in generated code.
+add_library(storylang_runtime STATIC ai_runtime.h ai_runtime.cpp)
+target_include_directories(storylang_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_executable(ir_test ir_test.cpp)
 target_include_directories(ir_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ir_test storylang_ir storylang_core)
@@ -67,6 +71,11 @@ add_executable(target_codegen_test target_codegen_test.cpp)
 target_include_directories(target_codegen_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(target_codegen_test storylang_ir storylang_core)
 
+add_executable(ai_test ai_test.cpp)
+target_sources(ai_test PRIVATE runner.h runner.cpp)
+target_include_directories(ai_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(ai_test storylang_runtime storylang_ir storylang_semantic storylang_core)
+
 # Enable testing
 enable_testing()
 add_test(NAME LexerTest COMMAND lexer_test)
@@ -75,10 +84,13 @@ add_test(NAME AnalyzerTest COMMAND analyzer_test)
 add_test(NAME IRTest COMMAND ir_test)
 add_test(NAME OptimizerTest COMMAND optimizer_test)
 add_test(NAME TargetCodegenTest COMMAND target_codegen_test)
+add_test(NAME AITest COMMAND ai_test)
+set_tests_properties(AITest PROPERTIES ENVIRONMENT "STORYLANG_AI_MOCK=1")
 
 # CLI executable
 add_executable(storylang_cli cli.cpp)
-target_link_libraries(storylang_cli storylang_ir storylang_semantic storylang_core)
+target_sources(storylang_cli PRIVATE runner.h runner.cpp)
+target_link_libraries(storylang_cli storylang_ir storylang_semantic storylang_runtime storylang_core)
 
 # Print configuration
 message(STATUS "=== StoryLang Compiler Configuration ===")

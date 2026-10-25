@@ -176,6 +176,12 @@ void TargetCodeGenerator::collectSymbols(const ThreeAddressCode &ir)
         }
         else if (q.op == "ACTION")
         {
+            if (q.arg1 == "AI.generate")
+            {
+                pendingParams.clear();
+                continue;
+            }
+
             std::string actionName = q.arg1;
             std::string msg = ">>> [ACTION EXECUTION] ACTION: " + actionName;
             if (!pendingParams.empty())
@@ -449,6 +455,20 @@ void TargetCodeGenerator::generate(const ThreeAddressCode &ir)
 
         if (q.op == "ACTION")
         {
+            if (q.arg1 == "AI.generate")
+            {
+                emitComment("3AC: " + q.toInstructionString());
+                for (auto it = pendingParams.rbegin(); it != pendingParams.rend(); ++it)
+                {
+                    emit("pushl", getLocation(*it), "Push AI prompt");
+                }
+                emit("pushl", "$" + q.arg2, "Push AI argument count");
+                emit("call", "_story_ai_generate", "Call StoryLang AI runtime");
+                emit("addl", "$" + std::to_string(std::stoi(q.arg2) * 4 + 4) + ", %esp", "Clean AI argument stack");
+                pendingParams.clear();
+                continue;
+            }
+
             emitComment("3AC: " + q.toInstructionString());
             std::string key = "act_" + std::to_string(actionIndex++);
             std::string actLabel = actionLabels_[key];
@@ -471,10 +491,20 @@ void TargetCodeGenerator::generate(const ThreeAddressCode &ir)
                 emit("pushl", getLocation(*it), "Push argument");
             }
 
-            emit("call", "_" + funcName, "Call function " + funcName);
+            const bool isAIChoose = funcName == "AI.choose";
+            if (isAIChoose)
+            {
+                emit("pushl", "$" + q.arg2, "Push AI argument count");
+                emit("call", "_story_ai_choose", "Call StoryLang AI runtime");
+            }
+            else
+            {
+                emit("call", "_" + funcName, "Call function " + funcName);
+            }
             if (!pendingParams.empty())
             {
-                emit("addl", "$" + std::to_string(pendingParams.size() * 4) + ", %esp", "Clean argument stack");
+                const int extraArguments = isAIChoose ? 1 : 0;
+                emit("addl", "$" + std::to_string((pendingParams.size() + extraArguments) * 4) + ", %esp", "Clean argument stack");
             }
             if (!q.result.empty())
             {

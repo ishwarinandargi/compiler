@@ -85,6 +85,10 @@ std::string SemanticAnalyzer::inferType(const Expr &expr)
     case NodeKind::Call:
     {
         const auto &call = static_cast<const CallExpr &>(expr);
+        if (call.callee == "AI.choose")
+        {
+            return "number";
+        }
         const auto *sym = symbolTable_.lookup(call.callee);
         if (!sym)
         {
@@ -127,6 +131,16 @@ bool SemanticAnalyzer::isStringLike(const std::string &type) const
     return type == "string";
 }
 
+bool SemanticAnalyzer::isBuiltinFunction(const std::string &name) const
+{
+    return name == "AI.choose";
+}
+
+bool SemanticAnalyzer::isBuiltinAction(const std::string &name) const
+{
+    return name == "AI.generate";
+}
+
 void SemanticAnalyzer::validateAssignment(const std::string &lvalue, const std::string &rvalue, int line, int column)
 {
     const std::string leftType = inferType(lvalue);
@@ -144,6 +158,15 @@ void SemanticAnalyzer::validateAssignment(const std::string &lvalue, const std::
 
 void SemanticAnalyzer::validateFunctionCall(const CallExpr &call, int line, int column)
 {
+    if (isBuiltinFunction(call.callee))
+    {
+        if (call.args.size() < 2)
+        {
+            error("AI.choose requires a prompt and at least one option", line, column);
+        }
+        return;
+    }
+
     const Symbol *fn = symbolTable_.lookup(call.callee);
     if (!fn)
     {
@@ -221,6 +244,19 @@ void SemanticAnalyzer::visit(CallExpr &expr)
 
 void SemanticAnalyzer::visit(ActionStmt &stmt)
 {
+    if (isBuiltinAction(stmt.name))
+    {
+        if (stmt.args.size() != 1)
+        {
+            error("AI.generate requires exactly one prompt", 0, 0);
+        }
+        for (const auto &arg : stmt.args)
+        {
+            arg->accept(*this);
+        }
+        return;
+    }
+
     for (const auto &arg : stmt.args)
     {
         if (const auto *ident = dynamic_cast<const IdentifierExpr *>(arg.get()))

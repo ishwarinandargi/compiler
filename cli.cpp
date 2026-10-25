@@ -6,6 +6,7 @@
 #include "optimizer.h"
 #include "target_codegen.h"
 #include "analyzer.h"
+#include "runner.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -32,6 +33,7 @@ void printUsage(const std::string &programName)
     std::cout << "  --quads              Print 3AC Quadruple Table" << std::endl;
     std::cout << "  --opt                Run intermediate code optimizer and show report" << std::endl;
     std::cout << "  --target, --asm      Generate and print x86-64 Target Machine Assembly" << std::endl;
+    std::cout << "  --run                Execute the StoryLang program" << std::endl;
     std::cout << "  --all                Run and display all 6 compiler stages sequentially" << std::endl;
     std::cout << "  --help               Show this help message" << std::endl;
     std::cout << "\nExample:" << std::endl;
@@ -274,6 +276,7 @@ int main(int argc, char *argv[])
     bool printOpt = false;
     bool printTarget = false;
     bool printAll = false;
+    bool runProgram = false;
 
     // Parse command line arguments
     for (int i = 1; i < argc; ++i)
@@ -320,6 +323,10 @@ int main(int argc, char *argv[])
         else if (arg == "--all")
         {
             printAll = true;
+        }
+        else if (arg == "--run")
+        {
+            runProgram = true;
         }
         else if (arg == "--output" && i + 1 < argc)
         {
@@ -372,6 +379,27 @@ int main(int argc, char *argv[])
         // STAGE 1: Lexical Analysis
         Lexer lexer(source);
         auto tokens = lexer.tokenize();
+
+        if (runProgram)
+        {
+            Parser parser(tokens);
+            auto ast = parser.parse();
+
+            SemanticAnalyzer analyzer;
+            analyzer.analyze(*ast);
+            if (!analyzer.errors().empty())
+            {
+                for (const auto &error : analyzer.errors())
+                {
+                    std::cerr << error << '\n';
+                }
+                return 1;
+            }
+
+            StoryRuntime runtime;
+            runtime.run(*ast);
+            return 0;
+        }
 
         if (printAll)
         {
@@ -600,7 +628,8 @@ int main(int argc, char *argv[])
     }
     catch (const std::runtime_error &e)
     {
-        std::cerr << "Lexical/Syntax Error: " << e.what() << std::endl;
+        std::cerr << (runProgram ? "Runtime Error: " : "Lexical/Syntax Error: ")
+                  << e.what() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

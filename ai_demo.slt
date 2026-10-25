@@ -1,0 +1,3 @@
+STATE choice: {attack | flee}
+INIT choice := AI.choose("What should the hero do?", "attack", "flee")
+ACTION AI.generate("Describe the next scene")

@@ -267,7 +267,7 @@ void Parser::skipNewlines()
 
             std::unique_ptr<Statement> Parser::parseActionStatement()
             {
-                const std::string name = consume(TokenType::IDENTIFIER, "identifier").lexeme;
+                const std::string name = parseQualifiedName();
                 consume(TokenType::LPAREN, "(");
                 std::vector<std::unique_ptr<Expr>> args;
                 if (!check(TokenType::RPAREN))

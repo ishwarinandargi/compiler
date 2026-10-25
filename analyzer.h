@@ -45,6 +45,8 @@ private:
     bool isBoolean(const std::string &type) const;
     bool isIntegerLike(const std::string &type) const;
     bool isStringLike(const std::string &type) const;
+    bool isBuiltinFunction(const std::string &name) const;
+    bool isBuiltinAction(const std::string &name) const;
     void validateAssignment(const std::string &lvalue, const std::string &rvalue, int line, int column);
     void validateFunctionCall(const CallExpr &call, int line, int column);
     std::vector<std::string> extractStateValues(const StateDecl &decl) const;
